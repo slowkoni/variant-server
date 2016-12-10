@@ -28,7 +28,7 @@ database_name = 'predictvar'
 @application.route("/variant/rsid/<rsid>/")
 def by_rsid(rsid):
     results = []
-    client = MongoClient('172.17.0.1')
+    client = MongoClient('127.0.0.1')
     db = client[database_name]
 
     rsid_q = db.dbsnp.find({'rsid': rsid})
@@ -45,7 +45,7 @@ def by_rsid(rsid):
 @application.route("/variant/position/<chm>/<int:pos>/<alt>/")
 def variant(chm,pos,alt=None):
     results = []
-    client = MongoClient('172.17.0.1')
+    client = MongoClient('127.0.0.1')
     db = client[database_name]
 
     query = None

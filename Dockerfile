@@ -34,6 +34,16 @@ RUN apt-get install -y git gcc make python-pip python-dev wget curl sudo net-too
 RUN pip install uWSGI
 RUN pip install Flask
 
+# Now install mongodb - this can be a little touchy, so if you are trying to
+# build the container and find it fails here, that is why I separated it from
+# the above installs. You will need to troubleshoot the issue - just google
+# the exact error message from the install, it will be buried among a bunch of
+# other noise from apt which is itself complaining there was a problem. But
+# it is probably not apt's problem that you want to troubleshoot, it is the
+# problem encountered during the mongodb package installations reported by
+# those package's install scripts before that
+RUN apt-get install -y mongodb-org-server mongodb-org-shell mongodb-org-tools mongodb-org python-pymongo
+
 # Add a user with normal user level privs to this container. The UID can be
 # changed on the command line for the build with --build-arg UID=$UID to make
 # it match YOUR user id on the system you are building on. Then, host
@@ -70,16 +80,6 @@ RUN adduser nginx www-data
 # Set a place in our play space for nginx logs to go
 RUN mkdir /home/variant-server/nginx-logs
 RUN chown nginx:www-data /home/variant-server/nginx-logs
-
-# Now install mongodb - this can be a little touchy, so if you are trying to
-# build the container and find it fails here, that is why I separated it from
-# the above installs. You will need to troubleshoot the issue - just google
-# the exact error message from the install, it will be buried among a bunch of
-# other noise from apt which is itself complaining there was a problem. But
-# it is probably not apt's problem that you want to troubleshoot, it is the
-# problem encountered during the mongodb package installations reported by
-# those package's install scripts before that
-RUN apt-get install -y mongodb-org-server mongodb-org-shell mongodb-org-tools mongodb-org python-pymongo
 
 # Make the mongodb database directory and lets try to keep all our shit inside
 # our play space, the /home/variant-server directory. So mongodb's files will
