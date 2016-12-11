@@ -3,7 +3,7 @@ FROM nginx
 
 # Yeah, I did this shit - I'm an academic, give me a break you silicon valley pros
 MAINTAINER Mark Koni Hamilton Wright <mhwright@stanford.edu>
-LABEL version="0.03"
+LABEL version="0.04"
 
 # Add to APT repository lists the those we need to pull in non-ubuntu packages
 # namely, mongodb
@@ -26,7 +26,7 @@ RUN apt-get install -y apt-utils
 RUN apt-get upgrade -y
 
 # Now get the ubuntu packages we are going to need to do anything else
-RUN apt-get install -y git gcc make python-pip python-dev wget curl sudo net-tools telnet links2 vim
+RUN apt-get install -y git gcc make python-pip python-dev wget curl sudo net-tools telnet links2 vim pbzip2
 
 # Now get from python's package manager, the python web gateway (uWSGI) that
 # nginx will speak with, and Flask, the web framework we are using that uWSGI
@@ -54,7 +54,7 @@ RUN apt-get install -y mongodb-org-server mongodb-org-shell mongodb-org-tools mo
 # inside the container matches the user id on the host that executed docker run
 ARG UID=1000
 RUN useradd --non-unique -u $UID --home /home/variant-server --user-group --create-home --shell /bin/bash variant-server
-RUN echo "variant-server  ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
+#RUN echo "variant-server  ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # After the above /home/variant-server exists and there is the user variant-server
 # We will add all our files of the docker build context to this directory,
@@ -74,7 +74,7 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 
 # I cant get uWSGI configuration ini to chown the socket to nginx group
 # it defaults to www-data, so just add nginx to that group. Otherwise
-# they can't talk do to permissions
+# they can't talk due to permissions problems with the socket
 RUN adduser nginx www-data
 
 # Set a place in our play space for nginx logs to go
@@ -118,4 +118,43 @@ RUN chmod -R 775 /home/variant-server/database
 # changes that matter for us, copy that to the docker build context (where you
 # find this file), and rebuild the container
 ADD mongod.conf /etc/
+
+# The server serves HTTP/HTTPS so it needs those ports open, and mongo
+# might be needed from the host or at least most convenient that way. It is up
+# to the user to make sure access to the exposed mongo port is restricted
+# from the internet by the host's firewall and forwarding rules, or docker
+# run port mappings
+EXPOSE 80 443 27017
+
+# Switch to the variant-server user because I want all these files created
+# as the variant-server user and not as root. If --build-arg DOWNLOAD=yes was
+# set, then we will download from S3 the most recent dump of the our lab's
+# running variant server, and also then load mongo with it.
+USER variant-server
+
+# We will not download and install a database unless explicitly requested
+# this will take a long time otherwise. Use --build-arg DOWNLOAD=yes to
+# pull the latest snapshot of the lab's variant server mongodb database to
+# the image build and load mongo inside the image.
+#
+# NOTE: You may instead want the mongo database data itself to live outside
+#       the docker image on the host filesystem and share the mongo database
+#       directory with the container with -v on the docker run command line
+#
+# WARNING: You may run into problems building the container due to the payload
+#          pacticularly on Macs where the workspace docker has for building
+#          images does have a limit that can only be extended through some
+#          manual crap. Thus the build of this image w/ download may fail
+#          due to this. That can happen on Linux too.
+# Please see https://forums.docker.com/t/no-space-left-on-device-error/10894/33
+# for more information if you see "no space left on device" and failure at this
+# step.
+#
+# This command will remove exited containers:
+#    docker rm $(docker ps -q -f 'status=exited')
+# This command will remove "dangling" images - images not needed for anything
+#    docker rmi $(docker images -q -f "dangling=true")
+# Doing both will clear out some of your docker build workspace
+ARG DATABASE_SITE=http://variant-server-current-dump.s3-accelerate.amazonaws.com/variant-server-mongodump-2016-12-10.tar.bz2
+RUN /home/variant-server/download-database.sh $DATABASE_SITE
 
