@@ -3,7 +3,7 @@ FROM nginx
 
 # Yeah, I did this shit - I'm an academic, give me a break you silicon valley pros
 MAINTAINER Mark Koni Hamilton Wright <mhwright@stanford.edu>
-LABEL version="0.04"
+LABEL version="0.05"
 
 # Add to APT repository lists the those we need to pull in non-ubuntu packages
 # namely, mongodb
@@ -44,6 +44,40 @@ RUN pip install Flask
 # those package's install scripts before that
 RUN apt-get install -y mongodb-org-server mongodb-org-shell mongodb-org-tools mongodb-org python-pymongo
 
+# Set the mongod configuration. Ideally, I'd just like to change the database
+# directory setting and maybe the logging directory settings, and leave mongo's
+# defaults, presumably good settings, as is. Those may change with new mongo
+# releases, but since we are copying an entire configuration file, we won't get
+# those presumably new general purpose optimal settings. Also, this means there
+# is the potential to fail if the older mongod.conf file here disagrees with
+# some new update to how the files are interpreted or what is required in them.
+# If mongod fails to start, get the original mongod.conf file, and manually make
+# changes that matter for us, copy that to the docker build context (where you
+# find this file), and rebuild the container
+ADD mongod.conf /etc/
+
+# Inside nginx-conf/ is a conf.d/ directory and inside that is the server
+# configuration files, which the main default-installed /etc/nginx/nginx.conf
+# configuration will pull in. That will allow the file we have here in
+# nginx-conf/conf.d/ to configure our server for nginx
+ADD nginx-conf/ /etc/nginx/
+
+# Default nginx config only specs one worker process, probably all that we'll
+# ever need, but lets switch it to 10 so we can actually handle a burst of
+# requests if we ever get them. If we do, they will probably be some robot
+# trying to search for default files and I don't want that to jam the channel
+# for the legit queries to the API
+RUN mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.old && cat /etc/nginx/nginx.conf.old | sed -e 's/^worker_processes\s\s*[0-9]*;/worker_processes  10;/' > /etc/nginx/nginx.conf
+
+# Remove the default nginx server config, so all behavior, good or bad,
+# must be our fault and therefore a result of our config files
+RUN rm -f /etc/nginx/conf.d/default.conf
+
+# I cant get uWSGI configuration ini to chown the socket to nginx group
+# it defaults to www-data, so just add nginx to that group. Otherwise
+# they can't talk due to permissions problems with the socket
+RUN adduser nginx www-data
+
 # Add a user with normal user level privs to this container. The UID can be
 # changed on the command line for the build with --build-arg UID=$UID to make
 # it match YOUR user id on the system you are building on. Then, host
@@ -54,37 +88,16 @@ RUN apt-get install -y mongodb-org-server mongodb-org-shell mongodb-org-tools mo
 # inside the container matches the user id on the host that executed docker run
 ARG UID=1000
 RUN useradd --non-unique -u $UID --home /home/variant-server --user-group --create-home --shell /bin/bash variant-server
-#RUN echo "variant-server  ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-# After the above /home/variant-server exists and there is the user variant-server
-# We will add all our files of the docker build context to this directory,
-# though some are not needed there, like the files we are about to copy into
-# /etc for nginx and mongodb config
-ADD . /home/variant-server
-RUN chown -R variant-server:variant-server /home/variant-server
-
-# Inside nginx-conf/ is a conf.d/ directory and inside that is the server
-# configuration files, which the main default-installed /etc/nginx/nginx.conf
-# configuration will pull in. That will allow the file we have here in
-# nginx-conf/conf.d/ to configure our server for nginx
-ADD nginx-conf/ /etc/nginx/
-
-# Remove the default nginx config, so all behavior, good or bad, must be our fault
-RUN rm -f /etc/nginx/conf.d/default.conf
-
-# I cant get uWSGI configuration ini to chown the socket to nginx group
-# it defaults to www-data, so just add nginx to that group. Otherwise
-# they can't talk due to permissions problems with the socket
-RUN adduser nginx www-data
 
 # Set a place in our play space for nginx logs to go
 RUN mkdir /home/variant-server/nginx-logs
-RUN chown nginx:www-data /home/variant-server/nginx-logs
+
+###### SETUP the mongo database directory ######
 
 # Make the mongodb database directory and lets try to keep all our shit inside
 # our play space, the /home/variant-server directory. So mongodb's files will
 # live in there. 
-RUN mkdir -p /home/variant-server/database
+RUN mkdir /home/variant-server/database
 
 # Because we might have a live and development version, or a running version
 # and then we are going to update to a new release and want to save the
@@ -103,34 +116,12 @@ RUN ln -s /home/variant-server/database/initial /home/variant-server/database/li
 # We'll also direct mongod to write its logs and problems into our play space
 RUN mkdir /home/variant-server/database/logs
 
-# We also need to set permissions and group ownership so mongod can access
-RUN chown -R root:mongodb /home/variant-server/database
-RUN chmod -R 775 /home/variant-server/database
-
-# Set the mongod configuration. Ideally, I'd just like to change the database
-# directory setting and maybe the logging directory settings, and leave mongo's
-# defaults, presumably good settings, as is. Those may change with new mongo
-# releases, but since we are copying an entire configuration file, we won't get
-# those presumably new general purpose optimal settings. Also, this means there
-# is the potential to fail if the older mongod.conf file here disagrees with
-# some new update to how the files are interpreted or what is required in them.
-# If mongod fails to start, get the original mongod.conf file, and manually make
-# changes that matter for us, copy that to the docker build context (where you
-# find this file), and rebuild the container
-ADD mongod.conf /etc/
-
 # The server serves HTTP/HTTPS so it needs those ports open, and mongo
 # might be needed from the host or at least most convenient that way. It is up
 # to the user to make sure access to the exposed mongo port is restricted
 # from the internet by the host's firewall and forwarding rules, or docker
 # run port mappings
 EXPOSE 80 443 27017
-
-# Switch to the variant-server user because I want all these files created
-# as the variant-server user and not as root. If --build-arg DOWNLOAD=yes was
-# set, then we will download from S3 the most recent dump of the our lab's
-# running variant server, and also then load mongo with it.
-USER variant-server
 
 # We will not download and install a database unless explicitly requested
 # this will take a long time otherwise. Use --build-arg DOWNLOAD=yes to
@@ -155,6 +146,35 @@ USER variant-server
 # This command will remove "dangling" images - images not needed for anything
 #    docker rmi $(docker images -q -f "dangling=true")
 # Doing both will clear out some of your docker build workspace
-ARG DATABASE_SITE=http://variant-server-current-dump.s3-accelerate.amazonaws.com/variant-server-mongodump-2016-12-10.tar.bz2
-RUN /home/variant-server/download-database.sh $DATABASE_SITE
 
+# NOT USING THIS AT THE MOMENT
+#ARG DATABASE_SITE=http://variant-server-current-dump.s3-accelerate.amazonaws.com/variant-server-mongodump-2016-12-10.tar.bz2
+#
+# This is sort of more complicated than doable in RUN commands, so its in a
+# shell script. BUT - THERE IS GOOD REASON NOT TO DO THIS INSIDE THE CONTAINER HERE.
+# please see the shell script comments for why this should eventually be
+# commented out here, and you should run the script via docker run with a
+# host mounted volume
+# This should be run by the docker run command with a host shared directory
+# for the mongo database to live in. Also, remember the container fs is
+# ephemeral so when docker run finishes, all changes to within the container
+# are gone, although I think you can still grab the image from an exited
+# container as long as you didn't docker rm it yet.
+#RUN /home/variant-server/download-database.sh
+
+#Trying not to need this - commented out for now
+#RUN echo "variant-server  ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
+# NOTE: If you changed anything since last build in the github repo, then this
+#       next line is going to cause a cache miss and everything after this will
+#       be executed. That is why it is last, and the setting of permissions
+#       for nginx and mongod, which have to come after the chown for variant-server
+#       follows instead of grouped up with nginx and mongod install/setup stuff
+#       above
+ADD . /home/variant-server
+RUN chown -R variant-server:variant-server /home/variant-server
+
+# We also need to set permissions and group ownership so nginx and mongod can access
+RUN chown -R variant-server:mongodb /home/variant-server/database
+RUN chmod -R 775 /home/variant-server/database
+RUN adduser mongodb variant-server
+RUN chown nginx:www-data /home/variant-server/nginx-logs
