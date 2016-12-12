@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 # It is expected this script will be executed as root. It's final step is
 # to start the uwsgi gateway and to do so it will drop privilege to the
@@ -10,14 +10,19 @@
 # Someone out there - I would love to know if there is a simpler more direct
 # way of checking if a program is running. This works though.
 if [ -z "`ps ax | grep -e nginx | grep -v grep 2> /dev/null`" ]; then
+    echo
+    echo "nginx is not started yet, starting it... "
     /etc/init.d/nginx start
 fi
 
 # Start mongod if it is not yet started by something else
 if [ -z "`ps ax | grep -e mongod | grep -v grep 2> /dev/null`" ]; then
+    echo
+    echo "mongod is not started yet, starting it... "
     mongod --fork -f /etc/mongod.conf
 fi
 
+echo
 echo Starting uWSGI gateway...
 cd /home/variant-server
 sudo -u variant-server -g www-data uwsgi --ini variant-server-uwsgi.ini
