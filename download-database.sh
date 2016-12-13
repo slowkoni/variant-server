@@ -85,3 +85,16 @@ mongod --fork -f /etc/mongod.conf
 # Ok, we'll see how this shit show goes...
 echo Attempting to restore database from /home/variant-server/database/tmp.download/*/
 mongorestore /home/variant-server/database/tmp.download/*/
+
+# Give a chance for things to flush to disk through mongod
+sync
+sleep 5
+sync
+
+# I really hope this causes mongod to sync and stop. The start script won't work
+# we really want a clean shutdown otherwise the lockfile will persist and the
+# full data may not be written yet, but when this script exits, the docker
+# container will exit and automatically kill everything mid-sentance
+/etc/init.d/mongod stop
+
+sleep 5

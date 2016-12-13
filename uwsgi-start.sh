@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 # It is expected this script will be executed as root. It's final step is
 # to start the uwsgi gateway and to do so it will drop privilege to the
@@ -19,6 +19,11 @@ fi
 if [ -z "`ps ax | grep -e mongod | grep -v grep 2> /dev/null`" ]; then
     echo
     echo "mongod is not started yet, starting it... "
+    # Make sure we can access and write to the directory
+    chgrp mongodb /home/variant-server/database/live
+    chmod g+w /home/variant-server/database/live
+    # Remove a lingering lock file as this will prevent launch
+    rm -f /home/variant-server/database/live/mongod.lock
     mongod --fork -f /etc/mongod.conf
 fi
 
