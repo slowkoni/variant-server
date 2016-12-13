@@ -86,15 +86,25 @@ mongod --fork -f /etc/mongod.conf
 echo Attempting to restore database from /home/variant-server/database/initial/tmp.download/*/
 mongorestore /home/variant-server/database/initial/tmp.download/*/
 
-# Give a chance for things to flush to disk through mongod
+# Give a chance for things to flush to disk through mongod, flush OS caches
 sync
 sleep 5
 sync
 
-# I really hope this causes mongod to sync and stop. The start script won't work
-# we really want a clean shutdown otherwise the lockfile will persist and the
-# full data may not be written yet, but when this script exits, the docker
-# container will exit and automatically kill everything mid-sentance
-/etc/init.d/mongod stop
+# Stop mongod and hopefully gracefully with SIGTERM - note this will send
+# signal to the master process plus all child processes which we don't
+# really want. But for reasons I do not understand /etc/init.d/mongod start
+# won't work to start the server, that is why it is manually invoked above
+# and because we didn't use the proper way to start it
+# /etc/init.d/mongod stop doesn't work to stop it.
+#
+# What we need is for it to flush its caches to store and remove its lock
+# file. Especially because we have journaling turned off to make loading
+# faster, and we are generally query-only after that.
+killall mongod
 
+# Wait for mongod to stop
 sleep 5
+
+# get rid of the unpacked archive, its bloat
+rm -r /home/variant-server/database/initial/tmp.download

@@ -30,4 +30,12 @@ fi
 echo
 echo Starting uWSGI gateway...
 cd /home/variant-server
+
+# Note this command will not return and stay running in your terminal,
+# keeping docker alive. There is a way to have docker stay running
+# in the background, and we can capture noise from this script into
+# a log. Otherwise, you want to run this script in screen so you can
+# log out of your server leaving this running, and always come back
+# and reconnect to see what trash this has put out since
 sudo -u variant-server -g www-data uwsgi --ini variant-server-uwsgi.ini
+
