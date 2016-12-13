@@ -72,8 +72,8 @@ echo
 # is the only directory in there. The mongodump should live directly inside
 # that (if following my probably undocumented convention)
 echo "Pulling that shit down ... "
-mkdir -p /home/variant-server/database/tmp.download/
-curl -L $CURRENT_DATABASE | ( cd /home/variant-server/database/tmp.download && pbzip2 -dc - | tar -xf - )
+mkdir -p /home/variant-server/database/initial/tmp.download/
+curl -L $CURRENT_DATABASE | ( cd /home/variant-server/database/initial/tmp.download && pbzip2 -dc - | tar -xf - )
 
 # At time of writing, we are expecting to be inside the docker container
 # this means mongod is not running as its a different container for every
@@ -83,8 +83,8 @@ echo "Starting mongod server... "
 mongod --fork -f /etc/mongod.conf
 
 # Ok, we'll see how this shit show goes...
-echo Attempting to restore database from /home/variant-server/database/tmp.download/*/
-mongorestore /home/variant-server/database/tmp.download/*/
+echo Attempting to restore database from /home/variant-server/database/initial/tmp.download/*/
+mongorestore /home/variant-server/database/initial/tmp.download/*/
 
 # Give a chance for things to flush to disk through mongod
 sync

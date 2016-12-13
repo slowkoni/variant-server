@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 # It is expected this script will be executed as root. It's final step is
 # to start the uwsgi gateway and to do so it will drop privilege to the
