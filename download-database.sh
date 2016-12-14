@@ -87,21 +87,21 @@ echo Attempting to restore database from /home/variant-server/database/initial/t
 mongorestore /home/variant-server/database/initial/tmp.download/*/
 
 # Give a chance for things to flush to disk through mongod, flush OS caches
-sync
 sleep 5
 sync
 
-# Stop mongod and hopefully gracefully with SIGTERM - note this will send
-# signal to the master process plus all child processes which we don't
-# really want. But for reasons I do not understand /etc/init.d/mongod start
-# won't work to start the server, that is why it is manually invoked above
-# and because we didn't use the proper way to start it
-# /etc/init.d/mongod stop doesn't work to stop it.
+# We need mongod to flush all its caches and properly remove its lock
+# file, especially because we have journaling turned off to speed up
+# loading, and we don't need it after that as this is intended to be
+# query-only after bulk load.
 #
-# What we need is for it to flush its caches to store and remove its lock
-# file. Especially because we have journaling turned off to make loading
-# faster, and we are generally query-only after that.
-killall mongod
+# /etc/init.d/mongod stop doesn't work to stop it. Probably because
+# /etc/init.d/mongod start didn't work for me to stop it
+#
+# This I got from stack overflow, the source of all knowledge, and
+# seems to accomplish the task though may report an error or warning.
+# It still does stop the server and hopefully gracefully as desired.
+mongo --eval "db.getSiblingDB('admin').shutdownServer()"
 
 # Wait for mongod to stop
 sleep 5
