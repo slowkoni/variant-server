@@ -1,6 +1,6 @@
 ## variant-server
 
-A simple web-based service to return JSON objects describing known and predicted effects of genetic variants
+A simple web-based service to return JSON objects describing known and predicted effects of genetic variants.
 
 
 ### Building the variant server docker container
@@ -19,8 +19,10 @@ This is only needed once per update to the repo you've forked or cloned.
 ### Loading the current database for the Bustamante Lab variant server
 
 ```
-docker run -i -t -v <your local storage path>:/home/variant-server/database/initial variant-server /home/variant-server/download-database.sh
+docker run -i -t -v <your local storage path>/:/home/variant-server/database/initial variant-server /home/variant-server/download-database.sh
 ```
+
+IMPORTANT: Do not forget the trailing / on the local storage path!
 
 Where <your local storage path> means the *absolute* pathname of the
 place on the host where you want the mongo database to live. This
@@ -58,7 +60,7 @@ container into directories under /home/variant-server. Python/Flask
 errors should be found within the uWSGI logs.
 
 ```
-docker run -i -t variant-server /home/variant-server/uwsgi-start.sh
+docker run -i -t -v <your local storage path>/:/home/variant-server/database/initial -p 80:80 -p 443:443 variant-server /home/variant-server/uwsgi-start.sh
 ```
 
 NOTE: This will run in the foreground and not return, and also not
@@ -78,6 +80,12 @@ to get a shell inside. Then navigate to /home/variant-server and
 inspect or monitor logs. Python/Flask errors will be in the uwsgi
 logs, nginx routing errors to uwsgi will be in the nginx logs. Mongo
 problems will be in the mongo logs. 
+
+### Checking it out from the outside
+
+From your host, point a web browser at [http://localhost/ ](http://localhost/). You should see a page saying not found on this server. That is correct, there is no static content at this time for this server and no home or landing page. Now try [http://localhost/variant/rsid/rs4680/](http://localhost/variant/rsid/rs4680/). This should give you a JSON response with the predicted consequences (probably only from REVEL at this point) for the dbSNP variant known as rs4680. If you have a JSON viewer installed in your browser, it will look a little nicer and easier to read. If you see a JSON response with data, the server is working. If you see a JSON response that just effectively says no results, the server stack is working, and mongo is responding to the query generated, but the data is not loaded or not available somehow so mongo is not returning it. Now, try the same with https instead. You should see a warning from your browser about an untrusted certificate. This is normal, the github version of this includes a self-signed certificate for localhost and and is considered invalid by the browser or not authoritative - the browser can not prove the identity of the server is who it reports to be. Of course the Bustamante Lab domain signed certificate is not in the github repository. Click past the warnings or whatever to go forward and you should again see the same JSON response. If so, https is working, just identity of server not validated. For other users of this server, it is left as an exercise as how to install and use your own properly signed SSL certificate. The nginx configs will need to be updated and you will need to install your certificate and private key in /home/variant-server/ssl-certificates/.
+
+If you get connection refused, make sure you used the -p options as given above. Also, make sure your host system firewall and forwarding rules are not blocking the port mapping of the host system to the docker container. The -p option should result in any incoming connection to the host on ports 80 and 443, on any interface, to be forwarded to the running docker container at the same ports, which is what nginx is listening on, but any number of various security layers can interfere with that, more than can be documented here. In this case, go to below and check out from the inside - use the links2 text based browser to connect to localhost of the container, same addresses as above. If you get results, the container is working, but the port mapping/forwarding between host and container is not.
 
 ### Checking it out from the inside
 
