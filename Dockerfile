@@ -1,16 +1,20 @@
-FROM nginx
-# Start with official nginx docker image release
+FROM ubuntu:14.04.5
+# Start with official ubuntu docker image release
 
-# Yeah, I did this shit - I'm an academic, give me a break you silicon valley pros
-MAINTAINER Mark Koni Hamilton Wright <mhwright@stanford.edu>
-LABEL version="0.05"
+MAINTAINER Mark Koni Hamilton Wright <markoni.wright@gmail.com>
+LABEL version="0.06"
+
+# Try to prevent spurious warnings from apt/dpkg because of a lack
+# of ability for it to use the terminal for interactive configs
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Add to APT repository lists the those we need to pull in non-ubuntu packages
 # namely, mongodb
 ADD apt-sources/ /etc/apt/sources.list.d/
 
+
 # Get the mongodb release official signing keys so apt can verify the packages
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys D68FA50FEA312927 9ECBEC467F0CEB10
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys D68FA50FEA312927 9ECBEC467F0CEB10 0C49F3730359A14518585931BC711F9BA15703C6 E0B11894F66AEC98 EDA0D2388AE22BA9
 
 # Always need to make sure apt package list is current, plus we need it to add
 # to its knowledge of packages the mongo packages from the sources above we just
@@ -26,7 +30,7 @@ RUN apt-get install -y apt-utils
 RUN apt-get upgrade -y
 
 # Now get the ubuntu packages we are going to need to do anything else
-RUN apt-get install -y git gcc make python-pip python-dev wget curl sudo net-tools telnet links2 vim pbzip2
+RUN apt-get install -y git gcc make python-pip python-dev wget curl sudo net-tools telnet links2 vim pbzip2 nginx
 
 # Now get from python's package manager, the python web gateway (uWSGI) that
 # nginx will speak with, and Flask, the web framework we are using that uWSGI
@@ -76,7 +80,7 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 # I cant get uWSGI configuration ini to chown the socket to nginx group
 # it defaults to www-data, so just add nginx to that group. Otherwise
 # they can't talk due to permissions problems with the socket
-RUN adduser nginx www-data
+RUN adduser nginx && adduser nginx www-data
 
 # Add a user with normal user level privs to this container. The UID can be
 # changed on the command line for the build with --build-arg UID=$UID to make

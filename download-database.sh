@@ -71,7 +71,6 @@ echo
 # know what it is. So unpack into an empty directory to that leading path
 # is the only directory in there. The mongodump should live directly inside
 # that (if following my probably undocumented convention)
-echo "Pulling that shit down ... "
 mkdir -p /home/variant-server/database/initial/tmp.download/
 curl -L $CURRENT_DATABASE | ( cd /home/variant-server/database/initial/tmp.download && pbzip2 -dc - | tar -xf - )
 

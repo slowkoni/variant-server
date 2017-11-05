@@ -12,7 +12,7 @@ with the container using -v in docker run with read/write in both
 directions. I can't figure out how to get around the permission
 problems otherwise.
 
-`docker build --build-arg UID=$UID -t variant-server .`
+`docker build --build-arg UID=$UID -t variant-server variant-server`
 
 This is only needed once per update to the repo you've forked or cloned.
 
